@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cart</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="container mx-auto px-4 py-8">
+    <header class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl font-bold">My App</h1>
+      <nav>
+        <a href="/dashboard" class="text-blue-500 hover:underline mr-4">Dashboard</a>
+        <a href="/products" class="text-blue-500 hover:underline mr-4">Products</a>
+        <a href="/logout" class="text-blue-500 hover:underline">Logout</a>
+      </nav>
+    </header>
+
+    <main class="bg-white p-8 rounded-lg shadow-md">
+      <h2 class="text-2xl font-bold mb-4">Your Cart</h2>
+      <div id="cartItemsContainer">
+        <!-- Cart items will be loaded here -->
+      </div>
+      <div id="cartSummary" class="mt-8">
+        <!-- Cart summary will be loaded here -->
+      </div>
+      <div class="mt-8">
+        <button id="clearCartBtn" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">Clear Cart</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Fetch cart items and display them
+    function loadCartItems() {
+      fetch('/api/cart')
+        .then(response => response.json())
+        .then(cartItems => {
+          const cartItemsContainer = document.getElementById('cartItemsContainer');
+          const cartSummary = document.getElementById('cartSummary');
+
+          cartItemsContainer.innerHTML = '';
+          let total = 0;
+
+          if (cartItems.length === 0) {
+            cartItemsContainer.innerHTML = '<p>Your cart is empty.</p>';
+            cartSummary.innerHTML = '';
+            return;
+          }
+
+          cartItems.forEach(item => {
+            const itemTotal = item.price * item.quantity;
+            total += itemTotal;
+
+            const cartItemElement = document.createElement('div');
+            cartItemElement.className = 'border-b py-4';
+            cartItemElement.innerHTML = `
+              <div class="flex justify-between items-center">
+                <div class="flex items-center">
+                  <img src="${item.image_url || 'https://via.placeholder.com/100'}" alt="${item.name}" class="w-20 h-20 object-cover mr-4">
+                  <div>
+                    <h3 class="text-lg font-bold">${item.name}</h3>
+                    <p class="text-gray-700">$${item.price.toFixed(2)} each</p>
+                  </div>
+                </div>
+                <div class="flex items-center">
+                  <input type="number" min="1" value="${item.quantity}" class="w-16 px-2 py-1 border rounded-lg quantity-input" data-product-id="${item.product_id}">
+                  <button class="bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 ml-2 remove-item" data-product-id="${item.product_id}">Remove</button>
+                </div>
+                <p class="text-lg font-bold">$${itemTotal.toFixed(2)}</p>
+              </div>
+            `;
+
+            cartItemsContainer.appendChild(cartItemElement);
+          });
+
+          // Add event listeners to quantity inputs
+          document.querySelectorAll('.quantity-input').forEach(input => {
+            input.addEventListener('change', function() {
+              const productId = this.getAttribute('data-product-id');
+              const quantity = parseInt(this.value);
+
+              if (quantity < 1) {
+                this.value = 1;
+                return;
+              }
+
+              fetch('/api/cart/update', {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ productId, quantity }),
+              })
+              .then(response => response.json())
+              .then(data => {
+                loadCartItems(); // Reload cart items to update the view
+              })
+              .catch(error => console.error('Error updating cart item:', error));
+            });
+          });
+
+          // Add event listeners to remove buttons
+          document.querySelectorAll('.remove-item').forEach(button => {
+            button.addEventListener('click', function() {
+              const productId = this.getAttribute('data-product-id');
+
+              fetch(`/api/cart/remove/${productId}`, {
+                method: 'DELETE',
+              })
+              .then(response => response.json())
+              .then(data => {
+                loadCartItems(); // Reload cart items to update the view
+              })
+              .catch(error => console.error('Error removing item from cart:', error));
+            });
+          });
+
+          // Display cart summary
+          cartSummary.innerHTML = `
+            <div class="flex justify-between items-center">
+              <h3 class="text-xl font-bold">Total</h3>
+              <p class="text-xl font-bold">$${total.toFixed(2)}</p>
+            </div>
+          `;
+        })
+        .catch(error => console.error('Error fetching cart items:', error));
+    }
+
+    // Load cart items when the page loads
+    document.addEventListener('DOMContentLoaded', loadCartItems);
+
+    // Add event listener to clear cart button
+    document.getElementById('clearCartBtn').addEventListener('click', function() {
+      fetch('/api/cart/clear', {
+        method: 'DELETE',
+      })
+      .then(response => response.json())
+      .then(data => {
+        loadCartItems(); // Reload cart items to update the view
+      })
+      .catch(error => console.error('Error clearing cart:', error));
+    });
+  </script>
+</body>
+</html>
